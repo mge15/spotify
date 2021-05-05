@@ -38,7 +38,6 @@ SPOTIFY_API_URL = f"{SPOTIFY_API_BASE_URL}/{API_VERSION}"
 CLIENT_SIDE_URL = "http://127.0.0.1"
 PORT = 8080
 REDIRECT_URI = "http://127.0.0.1:8080/callback/q"
-# SCOPE = "playlist-modify-public"
 SCOPE = "user-follow-read"
 STATE = ""
 SHOW_DIALOG_bool = True
@@ -51,13 +50,15 @@ auth_query_parameters = {
     "client_id": CLIENT_ID
 }
 
+
 @app.route("/")
 def index():
     # Auth Step 1: Authorization
     url_args = "&".join(["{}={}".format(key, quote(val))
-                        for key, val in auth_query_parameters.items()])
+                         for key, val in auth_query_parameters.items()])
     auth_url = f'{SPOTIFY_AUTH_URL}/?{url_args}'
     return redirect(auth_url)
+
 
 @app.route("/callback/q")
 def callback():
@@ -84,83 +85,26 @@ def callback():
 
     # Get profile data
     user_profile_api_endpoint = f"{SPOTIFY_API_URL}/me"
-    profile_response = requests.get(user_profile_api_endpoint, headers=authorization_header)
+    profile_response = requests.get(
+        user_profile_api_endpoint, headers=authorization_header)
     profile_data = json.loads(profile_response.text)
 
-    # get followed artists
+    # get followed users
+    friends = ["stellapug1127", "justlivwithit", "sfrost5772"]
+    count = len(friends)
 
-    # Create Playlist
-    url = profile_data["href"]
-    playlist_api_endpoint = f"{url}/playlists"
-    request_body = json.dumps({
-        "name": playlist_group_name,
-        "description": "testingggg",
-        "public": True
-    })
+    user_followers = f"{SPOTIFY_API_URL}/me/following/contains?type=user&ids="
 
-    playlist_response = requests.post(url = playlist_api_endpoint, data=request_body, headers={"Content-Type":"application/json", "Authorization":f"Bearer {access_token}"})
+    for x in friends:
+        if friends.index(x) == count - 1:
+            user_followers = user_followers + x
+        else:
+            user_followers = user_followers + f"{x}%2C"
 
-    # add songs to playlist
-    playlist_id = playlist_response.json()['id']
-    endpoint_url = f'{playlist_api_endpoint}/{playlist_id}/tracks'
+    follower_response = requests.get(user_followers, headers=authorization_header)
+    user_data = json.loads(follower_response.text)
+    return str(user_data)
 
-    request_body = json.dumps({
-        "uris": uris
-    })
-
-    response = requests.post(url=endpoint_url, data=request_body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {access_token}"})
-
-    # get playlist data
-    playlist_data = json.loads(playlist_response.text)
-    playlist_link = playlist_data["external_urls"]["spotify"]
-    creator = playlist_data["owner"]["display_name"]
-
-    # send email
-
-    user = creator
-    playlist_name = playlist_group_name
-    playlist_link = playlist_link
-
-    #email code
-    SENDGRID_API_KEY = os.getenv(
-        "SENDGRID_API_KEY", default="OOPS, please set env var called 'SENDGRID_API_KEY'")
-    SENDGRID_TEMPLATE_ID = os.getenv(
-        "SENDGRID_TEMPLATE_ID", default="OOPS, please set env var called 'SENDGRID_TEMPLATE_ID'")
-    SENDER_ADDRESS = os.getenv(
-        "SENDER_ADDRESS", default="OOPS, please set env var called 'SENDER_ADDRESS'")
-
-    template_data = {
-        "user": user,
-        "playlist_name": playlist_name,
-        "playlist_link": playlist_link
-    }
-
-    client = SendGridAPIClient(SENDGRID_API_KEY)
-
-    # we can have this be an input
-    recipient = "mge15@georgetown.edu"
-
-    message = Mail(from_email=SENDER_ADDRESS, to_emails=recipient)
-    message.template_id = SENDGRID_TEMPLATE_ID
-    message.dynamic_template_data = template_data
-
-    try:
-        response = client.send(message)
-
-        # > <class 'python_http_client.client.Response'>
-        #print("RESPONSE:", type(response))
-        #print(response.status_code)  # > 202 indicates SUCCESS
-        #print(response.body)
-        #print(response.headers)
-        print("Email sent successfully!")
-
-    except Exception as err:
-        print(type(err))
-        print(err)
-
-    success = "Your playlist has been created"
-
-    return profile_data
 
 if __name__ == "__main__":
     app.run(debug=True, port=PORT)
